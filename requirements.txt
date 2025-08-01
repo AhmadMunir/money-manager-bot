@@ -1,0 +1,9 @@
+pyTelegramBotAPI==4.14.0
+SQLAlchemy==2.0.23
+alembic==1.13.1
+python-dotenv==1.0.0
+matplotlib==3.8.2
+pandas==2.1.4
+pytz==2023.3
+schedule==1.2.0
+babel==2.13.1
