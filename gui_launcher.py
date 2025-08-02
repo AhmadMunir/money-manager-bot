@@ -108,7 +108,7 @@ class BotGUILauncher:
                                   command=self.stop_bot, state="disabled")
         self.stop_btn.grid(row=0, column=3, padx=5)
         
-        self.restart_btn = ttk.Button(control_frame, text="🔄 Restart", 
+        self.restart_btn = ttk.Button(control_frame, text="Restart", 
                                      command=self.restart_bot, state="disabled")
         self.restart_btn.grid(row=0, column=4, padx=5)
         
@@ -560,17 +560,17 @@ class BotGUILauncher:
                     bot_info = response.json()
                     if bot_info.get("ok"):
                         bot_name = bot_info["result"]["first_name"]
-                        messagebox.showinfo("Success", f"✅ Connection successful!\nBot: {bot_name}")
+                        messagebox.showinfo("Success", f"Connection successful!\nBot: {bot_name}")
                     else:
-                        messagebox.showerror("Error", "❌ Invalid Bot Token")
+                        messagebox.showerror("Error", "Invalid Bot Token")
                 else:
-                    messagebox.showerror("Error", "❌ Connection failed")
+                    messagebox.showerror("Error", "Connection failed")
             except ImportError:
                 messagebox.showwarning("Info", "Install 'requests' to test connection")
             except Exception as e:
-                messagebox.showerror("Error", f"❌ Connection test failed:\n{e}")
+                messagebox.showerror("Error", f"Connection test failed:\n{e}")
         
-        test_btn = ttk.Button(main_frame, text="🔍 Test Connection", command=test_connection)
+        test_btn = ttk.Button(main_frame, text="Test Connection", command=test_connection)
         test_btn.grid(row=6, column=0, columnspan=2, pady=10)
         
         # Buttons frame
@@ -605,7 +605,7 @@ class BotGUILauncher:
             config["DATABASE_URL"] = db_url or "sqlite:///monman.db"
             
             if self.save_env_config(config):
-                messagebox.showinfo("Success", "✅ Configuration saved successfully!\n\nRestart the bot to apply changes.")
+                messagebox.showinfo("Success", "Configuration saved successfully!\n\nRestart the bot to apply changes.")
                 config_window.destroy()
         
         def load_example():
@@ -634,7 +634,7 @@ class BotGUILauncher:
         # Buttons
         ttk.Button(button_frame, text="📄 Load Example", command=load_example).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="💾 Save", command=save_config).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="❌ Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
         
         # Center the window
         config_window.update_idletasks()

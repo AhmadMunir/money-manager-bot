@@ -19,9 +19,9 @@ try:
     
     print("DATABASE RECOVERY STATUS:")
     print("=" * 40)
-    print(f"✅ Users: {users}")
-    print(f"✅ Active Wallets: {wallets}")
-    print(f"✅ Active Assets: {assets}")
+    print(f"[OK] Users: {users}")
+    print(f"[OK] Active Wallets: {wallets}")
+    print(f"[OK] Active Assets: {assets}")
     
     if assets > 0:
         print("\nYOUR ASSETS:")
@@ -36,10 +36,10 @@ try:
     conn.close()
     
     if users > 0:
-        print("🎉 DATA RECOVERY SUCCESSFUL!")
+        print("[SUCCESS] DATA RECOVERY SUCCESSFUL!")
         print("Your data has been restored and the bot should work normally now.")
     else:
-        print("❌ No data found. Please check the original database.")
+        print("[ERROR] No data found. Please check the original database.")
         
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f"[ERROR] Error: {e}")

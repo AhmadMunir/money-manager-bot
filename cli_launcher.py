@@ -469,16 +469,16 @@ class BotCLILauncher:
         test_connection = input(f"\n{Colors.CYAN}Test bot connection? [y/N]:{Colors.END} ").lower()
         if test_connection in ['y', 'yes']:
             if self.test_bot_connection(config_to_save["BOT_TOKEN"]):
-                self.print_success("✅ Bot connection test successful!")
+                self.print_success("Bot connection test successful!")
             else:
-                self.print_error("❌ Bot connection test failed!")
+                self.print_error("Bot connection test failed!")
                 confirm = input("Save configuration anyway? [y/N]: ").lower()
                 if confirm not in ['y', 'yes']:
                     return False
         
         # Save configuration
         if self.save_env_config(config_to_save):
-            self.print_success("✅ Bot configuration saved successfully!")
+            self.print_success("Bot configuration saved successfully!")
             self.print_info("Restart the bot to apply changes")
             return True
         else:

@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 def init_database():
     """Initialize database with tables, indexes, and default data"""
-    print("🔧 Creating database tables with optimizations...")
+    print("[INIT] Creating database tables with optimizations...")
     create_tables()
     
     # Enable SQLite optimizations
     if 'sqlite' in str(engine.url):
-        print("🚀 Applying SQLite performance optimizations...")
+        print("[PERF] Applying SQLite performance optimizations...")
         with engine.connect() as conn:
             conn.execute(text("PRAGMA journal_mode=WAL"))
             conn.execute(text("PRAGMA synchronous=NORMAL"))
@@ -29,10 +29,10 @@ def init_database():
             conn.execute(text("PRAGMA mmap_size=268435456"))  # 256MB
             conn.commit()
     
-    print("📊 Creating default categories...")
+    print("[DATA] Creating default categories...")
     create_default_categories()
     
-    print("✅ Enhanced database initialization completed!")
+    print("[OK] Enhanced database initialization completed!")
 
 def create_default_categories():
     """Create default income and expense categories"""
@@ -41,36 +41,36 @@ def create_default_categories():
         # Check if categories already exist
         existing_categories = db.query(Category).filter(Category.is_system == True).count()
         if existing_categories > 0:
-            print("⚠️ Default categories already exist, skipping...")
+            print("[SKIP] Default categories already exist, skipping...")
             return
         
         # Income categories
         income_categories = [
-            {"name": "Gaji", "type": "income", "icon": "💼"},
-            {"name": "Bonus", "type": "income", "icon": "🎁"},
-            {"name": "Freelance", "type": "income", "icon": "💻"},
-            {"name": "Investasi", "type": "income", "icon": "📈"},
-            {"name": "Hadiah", "type": "income", "icon": "🎉"},
-            {"name": "Penjualan", "type": "income", "icon": "🛒"},
-            {"name": "Lainnya", "type": "income", "icon": "💰"},
+            {"name": "Gaji", "type": "income", "icon": "[WORK]"},
+            {"name": "Bonus", "type": "income", "icon": "[GIFT]"},
+            {"name": "Freelance", "type": "income", "icon": "[COMP]"},
+            {"name": "Investasi", "type": "income", "icon": "[STOCK]"},
+            {"name": "Hadiah", "type": "income", "icon": "[PARTY]"},
+            {"name": "Penjualan", "type": "income", "icon": "[SHOP]"},
+            {"name": "Lainnya", "type": "income", "icon": "[MONEY]"},
         ]
         
         # Expense categories
         expense_categories = [
-            {"name": "Makanan", "type": "expense", "icon": "🍽️"},
-            {"name": "Transportasi", "type": "expense", "icon": "🚗"},
-            {"name": "Belanja", "type": "expense", "icon": "🛍️"},
-            {"name": "Tagihan", "type": "expense", "icon": "📋"},
-            {"name": "Kesehatan", "type": "expense", "icon": "🏥"},
-            {"name": "Pendidikan", "type": "expense", "icon": "📚"},
-            {"name": "Hiburan", "type": "expense", "icon": "🎬"},
-            {"name": "Olahraga", "type": "expense", "icon": "⚽"},
-            {"name": "Asuransi", "type": "expense", "icon": "🛡️"},
-            {"name": "Investasi", "type": "expense", "icon": "📊"},
-            {"name": "Donasi", "type": "expense", "icon": "💝"},
-            {"name": "Perbaikan", "type": "expense", "icon": "🔧"},
-            {"name": "Pajak", "type": "expense", "icon": "🏛️"},
-            {"name": "Lainnya", "type": "expense", "icon": "💸"},
+            {"name": "Makanan", "type": "expense", "icon": "[FOOD]"},
+            {"name": "Transportasi", "type": "expense", "icon": "[CAR]"},
+            {"name": "Belanja", "type": "expense", "icon": "[SHOP]"},
+            {"name": "Tagihan", "type": "expense", "icon": "[BILL]"},
+            {"name": "Kesehatan", "type": "expense", "icon": "[HEALTH]"},
+            {"name": "Pendidikan", "type": "expense", "icon": "[BOOK]"},
+            {"name": "Hiburan", "type": "expense", "icon": "[FUN]"},
+            {"name": "Olahraga", "type": "expense", "icon": "[SPORT]"},
+            {"name": "Asuransi", "type": "expense", "icon": "[INSUR]"},
+            {"name": "Investasi", "type": "expense", "icon": "[INVEST]"},
+            {"name": "Donasi", "type": "expense", "icon": "[GIVE]"},
+            {"name": "Perbaikan", "type": "expense", "icon": "[FIX]"},
+            {"name": "Pajak", "type": "expense", "icon": "[TAX]"},
+            {"name": "Lainnya", "type": "expense", "icon": "[OTHER]"},
         ]
         
         # Add income categories
@@ -94,8 +94,8 @@ def create_default_categories():
             db.add(category)
         
         db.commit()
-        print(f"✅ Created {len(income_categories)} income categories")
-        print(f"✅ Created {len(expense_categories)} expense categories")
+        print(f"[OK] Created {len(income_categories)} income categories")
+        print(f"[OK] Created {len(expense_categories)} expense categories")
         
     except Exception as e:
         logger.error(f"Error creating default categories: {e}")
@@ -106,42 +106,42 @@ def create_default_categories():
 
 def upgrade_existing_database():
     """Upgrade existing database schema to new optimized version"""
-    print("🔄 Checking for database upgrades...")
+    print("[UPGRADE] Checking for database upgrades...")
     
     try:
         with engine.connect() as conn:
             # Check and add new user columns if they don't exist
             try:
                 conn.execute(text("ALTER TABLE users ADD COLUMN language VARCHAR(10) DEFAULT 'id'"))
-                print("✅ Added language column to users")
+                print("[OK] Added language column to users")
             except Exception:
                 pass
             
             try:
                 conn.execute(text("ALTER TABLE users ADD COLUMN last_activity DATETIME DEFAULT CURRENT_TIMESTAMP"))
-                print("✅ Added last_activity column to users")
+                print("[OK] Added last_activity column to users")
             except Exception:
                 pass
             
             try:
                 conn.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
-                print("✅ Added updated_at column to users")
+                print("[OK] Added updated_at column to users")
             except Exception:
                 pass
             
             # Check and add new category columns if they don't exist
             try:
                 conn.execute(text("ALTER TABLE categories ADD COLUMN is_active BOOLEAN DEFAULT 1"))
-                print("✅ Added is_active column to categories")
+                print("[OK] Added is_active column to categories")
             except Exception:
                 pass
             
             conn.commit()
-            print("✅ Database upgrade completed")
+            print("[OK] Database upgrade completed")
     
     except Exception as e:
         logger.error(f"Error upgrading database: {e}")
-        print(f"⚠️ Upgrade error (may be normal): {e}")
+        print(f"[WARN] Upgrade error (may be normal): {e}")
 
 if __name__ == "__main__":
     try:
@@ -152,5 +152,5 @@ if __name__ == "__main__":
         init_database()
         
     except Exception as e:
-        print(f"❌ Error initializing database: {e}")
+        print(f"[ERROR] Error initializing database: {e}")
         sys.exit(1)

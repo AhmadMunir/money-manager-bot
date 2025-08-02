@@ -1,5 +1,5 @@
 {
-  "log_level": "INFO",
+  "log_level": "DEBUG",
   "auto_scroll": true,
   "max_log_lines": 1000,
   "bot_script": "main.py",
