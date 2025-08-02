@@ -136,6 +136,10 @@ class BotGUILauncher:
         save_btn = ttk.Button(control_frame, text="💾 Save Logs", command=self.save_logs)
         save_btn.grid(row=1, column=4, padx=5, pady=(10, 0))
         
+        # Config button
+        config_btn = ttk.Button(control_frame, text="⚙️ Config", command=self.open_config_dialog)
+        config_btn.grid(row=1, column=5, padx=5, pady=(10, 0))
+        
         # Log Display
         log_frame = ttk.LabelFrame(main_frame, text="Bot Logs", padding="5")
         log_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -393,6 +397,250 @@ class BotGUILauncher:
         """Clear log display"""
         self.log_text.delete('1.0', tk.END)
         self.log_message("INFO", "Log display cleared")
+    
+    def save_logs(self):
+        """Save logs to file"""
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".log",
+                filetypes=[("Log files", "*.log"), ("Text files", "*.txt"), ("All files", "*.*")],
+                title="Save Logs"
+            )
+            
+            if filename:
+                with open(filename, 'w') as f:
+                    f.write(self.log_text.get('1.0', tk.END))
+                self.log_message("INFO", f"Logs saved to: {filename}")
+                messagebox.showinfo("Success", f"Logs saved to:\n{filename}")
+                
+        except Exception as e:
+            self.log_message("ERROR", f"Error saving logs: {e}")
+            messagebox.showerror("Error", f"Error saving logs: {e}")
+    
+    def load_env_config(self):
+        """Load configuration from .env file"""
+        env_config = {}
+        env_file = ".env"
+        
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            env_config[key.strip()] = value.strip().strip('"\'')
+            except Exception as e:
+                self.log_message("ERROR", f"Error loading .env: {e}")
+        
+        return env_config
+    
+    def save_env_config(self, config):
+        """Save configuration to .env file"""
+        try:
+            env_file = ".env"
+            existing_config = {}
+            
+            # Read existing .env if it exists
+            if os.path.exists(env_file):
+                with open(env_file, 'r') as f:
+                    content = f.read()
+            else:
+                content = ""
+            
+            # Update with new values
+            lines = []
+            updated_keys = set()
+            
+            for line in content.split('\n'):
+                if line.strip() and not line.strip().startswith('#') and '=' in line:
+                    key = line.split('=', 1)[0].strip()
+                    if key in config:
+                        lines.append(f"{key}={config[key]}")
+                        updated_keys.add(key)
+                    else:
+                        lines.append(line)
+                else:
+                    lines.append(line)
+            
+            # Add new keys that weren't in the original file
+            for key, value in config.items():
+                if key not in updated_keys:
+                    lines.append(f"{key}={value}")
+            
+            # Write back to file
+            with open(env_file, 'w') as f:
+                f.write('\n'.join(lines))
+            
+            self.log_message("INFO", "Configuration saved to .env file")
+            return True
+            
+        except Exception as e:
+            self.log_message("ERROR", f"Error saving .env: {e}")
+            messagebox.showerror("Error", f"Error saving configuration: {e}")
+            return False
+    
+    def open_config_dialog(self):
+        """Open configuration dialog"""
+        config_window = tk.Toplevel(self.root)
+        config_window.title("Bot Configuration")
+        config_window.geometry("500x400")
+        config_window.resizable(True, True)
+        config_window.transient(self.root)
+        config_window.grab_set()
+        
+        # Load current config
+        env_config = self.load_env_config()
+        
+        # Main frame
+        main_frame = ttk.Frame(config_window, padding="20")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        config_window.columnconfigure(0, weight=1)
+        config_window.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        
+        # Title
+        title_label = ttk.Label(main_frame, text="MonMan Bot Configuration", 
+                               font=("Arial", 14, "bold"))
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
+        
+        # Bot Token
+        ttk.Label(main_frame, text="Bot Token:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        token_var = tk.StringVar(value=env_config.get("BOT_TOKEN", ""))
+        token_entry = ttk.Entry(main_frame, textvariable=token_var, width=50, show="*")
+        token_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
+        
+        # Show/Hide token
+        show_token_var = tk.BooleanVar()
+        def toggle_token_visibility():
+            if show_token_var.get():
+                token_entry.config(show="")
+            else:
+                token_entry.config(show="*")
+        
+        show_token_cb = ttk.Checkbutton(main_frame, text="Show Token", 
+                                       variable=show_token_var,
+                                       command=toggle_token_visibility)
+        show_token_cb.grid(row=2, column=1, sticky=tk.W, padx=(10, 0))
+        
+        # Admin ID
+        ttk.Label(main_frame, text="Admin Telegram ID:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        admin_id_var = tk.StringVar(value=env_config.get("ADMIN_ID", ""))
+        admin_id_entry = ttk.Entry(main_frame, textvariable=admin_id_var, width=50)
+        admin_id_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
+        
+        # Database URL
+        ttk.Label(main_frame, text="Database URL:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        db_url_var = tk.StringVar(value=env_config.get("DATABASE_URL", "sqlite:///monman.db"))
+        db_url_entry = ttk.Entry(main_frame, textvariable=db_url_var, width=50)
+        db_url_entry.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
+        
+        # Instructions
+        instructions = ttk.Label(main_frame, 
+                                text="Instructions:\n" +
+                                     "1. Get Bot Token from @BotFather on Telegram\n" +
+                                     "2. Get your Telegram ID from @userinfobot\n" +
+                                     "3. Database URL: Use default SQLite or custom",
+                                justify=tk.LEFT,
+                                foreground="gray")
+        instructions.grid(row=5, column=0, columnspan=2, pady=20, sticky=tk.W)
+        
+        # Test connection button
+        def test_connection():
+            token = token_var.get().strip()
+            if not token:
+                messagebox.showwarning("Warning", "Please enter Bot Token first")
+                return
+            
+            try:
+                # Simple test by trying to get bot info
+                import requests
+                response = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
+                if response.status_code == 200:
+                    bot_info = response.json()
+                    if bot_info.get("ok"):
+                        bot_name = bot_info["result"]["first_name"]
+                        messagebox.showinfo("Success", f"✅ Connection successful!\nBot: {bot_name}")
+                    else:
+                        messagebox.showerror("Error", "❌ Invalid Bot Token")
+                else:
+                    messagebox.showerror("Error", "❌ Connection failed")
+            except ImportError:
+                messagebox.showwarning("Info", "Install 'requests' to test connection")
+            except Exception as e:
+                messagebox.showerror("Error", f"❌ Connection test failed:\n{e}")
+        
+        test_btn = ttk.Button(main_frame, text="🔍 Test Connection", command=test_connection)
+        test_btn.grid(row=6, column=0, columnspan=2, pady=10)
+        
+        # Buttons frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=7, column=0, columnspan=2, pady=20)
+        
+        def save_config():
+            """Save configuration"""
+            config = {}
+            
+            token = token_var.get().strip()
+            admin_id = admin_id_var.get().strip()
+            db_url = db_url_var.get().strip()
+            
+            if not token:
+                messagebox.showwarning("Warning", "Bot Token is required!")
+                return
+            
+            if not admin_id:
+                messagebox.showwarning("Warning", "Admin ID is required!")
+                return
+            
+            # Validate admin ID is numeric
+            try:
+                int(admin_id)
+            except ValueError:
+                messagebox.showwarning("Warning", "Admin ID must be numeric!")
+                return
+            
+            config["BOT_TOKEN"] = token
+            config["ADMIN_ID"] = admin_id
+            config["DATABASE_URL"] = db_url or "sqlite:///monman.db"
+            
+            if self.save_env_config(config):
+                messagebox.showinfo("Success", "✅ Configuration saved successfully!\n\nRestart the bot to apply changes.")
+                config_window.destroy()
+        
+        def load_example():
+            """Load example configuration"""
+            example_file = ".env.example"
+            if os.path.exists(example_file):
+                try:
+                    example_config = {}
+                    with open(example_file, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                example_config[key.strip()] = value.strip().strip('"\'')
+                    
+                    token_var.set(example_config.get("BOT_TOKEN", ""))
+                    admin_id_var.set(example_config.get("ADMIN_ID", ""))
+                    db_url_var.set(example_config.get("DATABASE_URL", "sqlite:///monman.db"))
+                    
+                    messagebox.showinfo("Info", "Example configuration loaded")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error loading example: {e}")
+            else:
+                messagebox.showinfo("Info", "No .env.example file found")
+        
+        # Buttons
+        ttk.Button(button_frame, text="📄 Load Example", command=load_example).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="💾 Save", command=save_config).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="❌ Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
+        
+        # Center the window
+        config_window.update_idletasks()
+        x = (config_window.winfo_screenwidth() // 2) - (config_window.winfo_width() // 2)
+        y = (config_window.winfo_screenheight() // 2) - (config_window.winfo_height() // 2)
+        config_window.geometry(f"+{x}+{y}")
     
     def save_logs(self):
         """Save logs to file"""

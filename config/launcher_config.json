@@ -1,0 +1,7 @@
+{
+  "log_level": "INFO",
+  "auto_scroll": true,
+  "max_log_lines": 1000,
+  "bot_script": "main.py",
+  "log_file": "logs/bot.log"
+}

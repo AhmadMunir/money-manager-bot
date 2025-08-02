@@ -343,9 +343,192 @@ class BotCLILauncher:
                 self.print_warning("Bot process ended unexpectedly")
                 self.is_running = False
     
+    def load_env_config(self):
+        """Load configuration from .env file"""
+        env_config = {}
+        env_file = ".env"
+        
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            env_config[key.strip()] = value.strip().strip('"\'')
+            except Exception as e:
+                self.print_error(f"Error loading .env: {e}")
+        
+        return env_config
+    
+    def save_env_config(self, config):
+        """Save configuration to .env file"""
+        try:
+            env_file = ".env"
+            existing_lines = []
+            
+            # Read existing .env if it exists
+            if os.path.exists(env_file):
+                with open(env_file, 'r') as f:
+                    existing_lines = f.readlines()
+            
+            # Update existing lines or add new ones
+            updated_keys = set()
+            new_lines = []
+            
+            for line in existing_lines:
+                line = line.rstrip('\n')
+                if line.strip() and not line.strip().startswith('#') and '=' in line:
+                    key = line.split('=', 1)[0].strip()
+                    if key in config:
+                        new_lines.append(f"{key}={config[key]}")
+                        updated_keys.add(key)
+                    else:
+                        new_lines.append(line)
+                else:
+                    new_lines.append(line)
+            
+            # Add new keys that weren't in the original file
+            for key, value in config.items():
+                if key not in updated_keys:
+                    new_lines.append(f"{key}={value}")
+            
+            # Write back to file
+            with open(env_file, 'w') as f:
+                f.write('\n'.join(new_lines))
+                if new_lines and not new_lines[-1]:  # Add final newline if needed
+                    f.write('\n')
+            
+            self.print_success("Configuration saved to .env file")
+            return True
+            
+        except Exception as e:
+            self.print_error(f"Error saving .env: {e}")
+            return False
+    
+    def configure_bot_settings(self):
+        """Configure bot token and admin ID"""
+        print(f"\n{Colors.BOLD}Bot Configuration:{Colors.END}")
+        print("═" * 50)
+        
+        # Load current config
+        env_config = self.load_env_config()
+        
+        # Bot Token
+        current_token = env_config.get("BOT_TOKEN", "")
+        if current_token:
+            masked_token = current_token[:10] + "..." + current_token[-5:] if len(current_token) > 15 else "***"
+            print(f"Current Bot Token: {masked_token}")
+        else:
+            print("Current Bot Token: Not set")
+        
+        print(f"\n{Colors.YELLOW}Get Bot Token from @BotFather on Telegram{Colors.END}")
+        new_token = input("Enter Bot Token (Enter to keep current): ").strip()
+        
+        # Admin ID
+        current_admin = env_config.get("ADMIN_ID", "")
+        print(f"\nCurrent Admin ID: {current_admin if current_admin else 'Not set'}")
+        print(f"{Colors.YELLOW}Get your Telegram ID from @userinfobot{Colors.END}")
+        new_admin = input("Enter Admin Telegram ID (Enter to keep current): ").strip()
+        
+        # Database URL
+        current_db = env_config.get("DATABASE_URL", "sqlite:///monman.db")
+        print(f"\nCurrent Database URL: {current_db}")
+        new_db = input("Enter Database URL (Enter to keep current): ").strip()
+        
+        # Validate inputs
+        config_to_save = {}
+        
+        if new_token:
+            if len(new_token) < 10:
+                self.print_error("Bot token seems too short!")
+                return False
+            config_to_save["BOT_TOKEN"] = new_token
+        elif current_token:
+            config_to_save["BOT_TOKEN"] = current_token
+        else:
+            self.print_error("Bot token is required!")
+            return False
+        
+        if new_admin:
+            try:
+                int(new_admin)
+                config_to_save["ADMIN_ID"] = new_admin
+            except ValueError:
+                self.print_error("Admin ID must be numeric!")
+                return False
+        elif current_admin:
+            config_to_save["ADMIN_ID"] = current_admin
+        else:
+            self.print_error("Admin ID is required!")
+            return False
+        
+        config_to_save["DATABASE_URL"] = new_db if new_db else current_db
+        
+        # Test connection if requested
+        test_connection = input(f"\n{Colors.CYAN}Test bot connection? [y/N]:{Colors.END} ").lower()
+        if test_connection in ['y', 'yes']:
+            if self.test_bot_connection(config_to_save["BOT_TOKEN"]):
+                self.print_success("✅ Bot connection test successful!")
+            else:
+                self.print_error("❌ Bot connection test failed!")
+                confirm = input("Save configuration anyway? [y/N]: ").lower()
+                if confirm not in ['y', 'yes']:
+                    return False
+        
+        # Save configuration
+        if self.save_env_config(config_to_save):
+            self.print_success("✅ Bot configuration saved successfully!")
+            self.print_info("Restart the bot to apply changes")
+            return True
+        else:
+            return False
+    
+    def test_bot_connection(self, token):
+        """Test bot connection"""
+        try:
+            import requests
+            response = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
+            if response.status_code == 200:
+                bot_info = response.json()
+                if bot_info.get("ok"):
+                    bot_name = bot_info["result"]["first_name"]
+                    self.print_success(f"Bot connected: {bot_name}")
+                    return True
+            return False
+        except ImportError:
+            self.print_warning("Install 'requests' package to test connection")
+            return True  # Don't fail if requests not available
+        except Exception as e:
+            self.print_error(f"Connection test error: {e}")
+            return False
+    
     def configure(self):
         """Interactive configuration"""
-        print(f"\n{Colors.BOLD}Configuration:{Colors.END}")
+        print(f"\n{Colors.BOLD}Configuration Menu:{Colors.END}")
+        print("═" * 40)
+        print("1. Bot Settings (Token & Admin ID)")
+        print("2. Launcher Settings") 
+        print("3. Load Example Configuration")
+        print("4. Back to Main Menu")
+        print()
+        
+        choice = input(f"{Colors.CYAN}Select option [1-4]:{Colors.END} ").strip()
+        
+        if choice == '1':
+            self.configure_bot_settings()
+        elif choice == '2':
+            self.configure_launcher_settings()
+        elif choice == '3':
+            self.load_example_config()
+        elif choice == '4':
+            return
+        else:
+            self.print_error("Invalid choice")
+    
+    def configure_launcher_settings(self):
+        """Configure launcher settings"""
+        print(f"\n{Colors.BOLD}Launcher Configuration:{Colors.END}")
         print("─" * 40)
         
         # Log level
@@ -368,9 +551,49 @@ class BotCLILauncher:
         auto_input = input("Enable auto restart? [y/N]: ").lower()
         self.config["auto_restart"] = auto_input in ['y', 'yes']
         
+        # Max log lines
+        current_lines = self.config.get("max_log_lines", 100)
+        print(f"Max log lines: {current_lines}")
+        new_lines = input("New max log lines (Enter to keep current): ")
+        if new_lines.strip().isdigit():
+            self.config["max_log_lines"] = int(new_lines)
+        
         # Save configuration
         self.save_config()
-        self.print_success("Configuration saved!")
+        self.print_success("Launcher configuration saved!")
+    
+    def load_example_config(self):
+        """Load example configuration"""
+        example_file = ".env.example"
+        if not os.path.exists(example_file):
+            self.print_warning(f"{example_file} not found")
+            return
+        
+        try:
+            example_config = {}
+            with open(example_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        example_config[key.strip()] = value.strip().strip('"\'')
+            
+            print(f"\n{Colors.BOLD}Example Configuration:{Colors.END}")
+            for key, value in example_config.items():
+                if "TOKEN" in key:
+                    print(f"{key}: {'*' * 20}")
+                else:
+                    print(f"{key}: {value}")
+            
+            confirm = input(f"\n{Colors.CYAN}Load this configuration? [y/N]:{Colors.END} ").lower()
+            if confirm in ['y', 'yes']:
+                if self.save_env_config(example_config):
+                    self.print_success("Example configuration loaded!")
+                else:
+                    self.print_error("Failed to load example configuration")
+            
+        except Exception as e:
+            self.print_error(f"Error loading example config: {e}")
     
     def interactive_menu(self):
         """Interactive menu"""
