@@ -48,17 +48,34 @@ def register_asset_handlers(bot):
     def delete_asset_callback(call):
         user_id = call.from_user.id
         asset_id = int(call.data.split('_')[-1])
+        
+        # Hapus tombol untuk mencegah double click
+        try:
+            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        except:
+            pass
+            
+        # Show loading message
+        bot.answer_callback_query(call.id, "🗑️ Sedang menghapus...", show_alert=False)
+        
         db = SessionLocal()
         try:
+            # Cari user terlebih dahulu
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            if not user:
+                bot.answer_callback_query(call.id, "❌ User tidak ditemukan.")
+                return
+                
             service = AssetService(db)
-            ok = service.delete_asset(asset_id, user_id)
+            ok = service.delete_asset(asset_id, user.id)  # Gunakan user.id bukan user_id
             if ok:
-                bot.answer_callback_query(call.id, "Aset berhasil dihapus!", show_alert=True)
-                bot.delete_message(call.message.chat.id, call.message.message_id)
+                bot.answer_callback_query(call.id, "✅ Aset berhasil dihapus!", show_alert=True)
                 # Refresh list
                 asset_command(call.message)
             else:
-                bot.answer_callback_query(call.id, "Gagal hapus aset.", show_alert=True)
+                bot.answer_callback_query(call.id, "❌ Gagal hapus aset.", show_alert=True)
+                # Restore buttons jika gagal
+                asset_command(call.message)
         finally:
             db.close()
 
@@ -68,9 +85,15 @@ def register_asset_handlers(bot):
         asset_id = int(call.data.split('_')[-1])
         db = SessionLocal()
         try:
-            asset = db.query(Asset).filter(Asset.id == asset_id, Asset.user_id == user_id, Asset.is_active == True).first()
+            # Cari user terlebih dahulu
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            if not user:
+                bot.answer_callback_query(call.id, "❌ User tidak ditemukan.", show_alert=True)
+                return
+                
+            asset = db.query(Asset).filter(Asset.id == asset_id, Asset.user_id == user.id, Asset.is_active == True).first()
             if not asset:
-                bot.answer_callback_query(call.id, "Aset tidak ditemukan.", show_alert=True)
+                bot.answer_callback_query(call.id, "❌ Aset tidak ditemukan.", show_alert=True)
                 return
             asset_states[user_id] = {
                 'edit_id': asset_id,
@@ -309,12 +332,28 @@ Apakah data sudah benar?"""
     def sync_asset_callback(call):
         user_id = call.from_user.id
         asset_id = int(call.data.split('_')[-1])
+        
+        # Hapus tombol untuk mencegah double click
+        try:
+            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        except:
+            pass
+        
+        # Show loading message
+        bot.answer_callback_query(call.id, "🔄 Sedang sinkronisasi...", show_alert=False)
+        
         db = SessionLocal()
         try:
-            asset = db.query(Asset).filter(Asset.id == asset_id, Asset.user_id == user_id, Asset.is_active == True).first()
-            if not asset:
-                bot.answer_callback_query(call.id, "Aset tidak ditemukan.")
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            if not user:
+                bot.answer_callback_query(call.id, "❌ User tidak ditemukan.")
                 return
+                
+            asset = db.query(Asset).filter(Asset.id == asset_id, Asset.user_id == user.id, Asset.is_active == True).first()
+            if not asset:
+                bot.answer_callback_query(call.id, "❌ Aset tidak ditemukan.")
+                return
+                
             service = AssetService(db)
             updated = service.sync_asset_price(asset)
             if updated:
@@ -323,7 +362,11 @@ Apakah data sudah benar?"""
                 text = f"🔄 Harga {asset.name} disinkronisasi!\nHarga terakhir: {format_currency_idr(asset.last_price)}\nReturn: {format_currency_idr(ret)} ({ret_pct:.2f}%)"
                 bot.answer_callback_query(call.id, text, show_alert=True)
             else:
-                bot.answer_callback_query(call.id, "Gagal sinkron harga. Coba lagi nanti.", show_alert=True)
+                bot.answer_callback_query(call.id, "❌ Gagal sinkron harga. Coba lagi nanti.", show_alert=True)
+                
+            # Refresh the asset list
+            asset_command(call.message)
+            
         finally:
             db.close()
 
@@ -355,7 +398,7 @@ Apakah data sudah benar?"""
                     total_return = 0
                     
                     for asset in assets:
-                        current_value = asset.get_current_value() if hasattr(asset, 'get_current_value') else (asset.last_price or asset.buy_price) * asset.quantity
+                        current_value = asset.get_current_value()
                         ret = asset.return_value or 0.0
                         ret_pct = asset.return_percent or 0.0
                         
@@ -363,7 +406,10 @@ Apakah data sudah benar?"""
                         total_return += ret
                         
                         text += f"📈 *{asset.name}* ({asset.symbol.upper()})\n"
-                        text += f"   Jumlah: {asset.quantity}\n"
+                        if asset.asset_type == 'saham':
+                            text += f"   Jumlah: {asset.quantity} lot ({asset.get_actual_quantity()} lembar)\n"
+                        else:
+                            text += f"   Jumlah: {asset.quantity}\n"
                         text += f"   Harga Beli: {format_currency_idr(asset.buy_price)}\n"
                         text += f"   Harga Terakhir: {format_currency_idr(asset.last_price) if asset.last_price else '-'}\n"
                         text += f"   Nilai Sekarang: {format_currency_idr(current_value)}\n"
@@ -571,8 +617,8 @@ Untuk menambah aset kembali, silakan pilih tombol "Tambah Aset" atau gunakan com
                     kripto_count = 0
                     
                     for asset in assets:
-                        investment = asset.buy_price * asset.quantity
-                        current_value = (asset.last_price or asset.buy_price) * asset.quantity
+                        investment = asset.get_total_cost()
+                        current_value = asset.get_current_value()
                         
                         total_investment += investment
                         total_current_value += current_value
@@ -644,12 +690,12 @@ Untuk menambah aset kembali, silakan pilih tombol "Tambah Aset" atau gunakan com
                     markup = types.InlineKeyboardMarkup()
                     
                     for asset in saham_assets:
-                        current_value = (asset.last_price or asset.buy_price) * asset.quantity
+                        current_value = asset.get_current_value()
                         ret = asset.return_value or 0.0
                         ret_pct = asset.return_percent or 0.0
                         
                         text += f"📊 *{asset.name}* ({asset.symbol.upper()})\n"
-                        text += f"   Jumlah: {asset.quantity} lembar\n"
+                        text += f"   Jumlah: {asset.quantity} lot ({asset.get_actual_quantity()} lembar)\n"
                         text += f"   Nilai: {format_currency_idr(current_value)}\n"
                         text += f"   Return: {format_currency_idr(ret)} ({ret_pct:.2f}%)\n\n"
                     
@@ -698,7 +744,7 @@ Untuk menambah aset kembali, silakan pilih tombol "Tambah Aset" atau gunakan com
                     markup = types.InlineKeyboardMarkup()
                     
                     for asset in crypto_assets:
-                        current_value = (asset.last_price or asset.buy_price) * asset.quantity
+                        current_value = asset.get_current_value()
                         ret = asset.return_value or 0.0
                         ret_pct = asset.return_percent or 0.0
                         

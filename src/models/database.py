@@ -249,10 +249,17 @@ class Asset(Base):
     def __repr__(self):
         return f"<Asset(symbol={self.symbol}, quantity={self.quantity}, buy_price={self.buy_price})>"
     
+    def get_actual_quantity(self):
+        """Get actual quantity considering lot size for stocks"""
+        if self.asset_type == 'saham':
+            return self.quantity * 100  # 1 lot = 100 lembar saham
+        return self.quantity
+    
     def calculate_return(self):
         """Calculate return amount and percentage"""
         if self.last_price and self.buy_price:
-            self.return_value = (self.last_price - self.buy_price) * self.quantity
+            actual_quantity = self.get_actual_quantity()
+            self.return_value = (self.last_price - self.buy_price) * actual_quantity
             self.return_percent = ((self.last_price - self.buy_price) / self.buy_price) * 100
         else:
             self.return_value = 0.0
@@ -260,10 +267,12 @@ class Asset(Base):
     
     def get_current_value(self):
         """Get current market value"""
+        actual_quantity = self.get_actual_quantity()
         if self.last_price:
-            return self.last_price * self.quantity
-        return self.buy_price * self.quantity
+            return self.last_price * actual_quantity
+        return self.buy_price * actual_quantity
     
     def get_total_cost(self):
         """Get total purchase cost"""
-        return self.buy_price * self.quantity
+        actual_quantity = self.get_actual_quantity()
+        return self.buy_price * actual_quantity
