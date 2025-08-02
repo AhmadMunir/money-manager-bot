@@ -94,18 +94,18 @@ def create_asset_menu():
     markup = types.InlineKeyboardMarkup(row_width=2)
     
     # Row 1: Asset list and add new asset
-    btn_list = types.InlineKeyboardButton("📋 Daftar Aset", callback_data="asset_list")
-    btn_add = types.InlineKeyboardButton("➕ Tambah Aset", callback_data="asset_add")
+    btn_list = types.InlineKeyboardButton("[LIST] Daftar Aset", callback_data="asset_list")
+    btn_add = types.InlineKeyboardButton("[ADD] Tambah Aset", callback_data="asset_add")
     markup.add(btn_list, btn_add)
     
     # Row 2: Sync prices and portfolio overview
-    btn_sync = types.InlineKeyboardButton("🔄 Sinkron Harga", callback_data="asset_sync")
-    btn_portfolio = types.InlineKeyboardButton("💼 Portofolio", callback_data="asset_portfolio")
+    btn_sync = types.InlineKeyboardButton("[SYNC] Sinkron Harga", callback_data="asset_sync")
+    btn_portfolio = types.InlineKeyboardButton("[PORT] Portofolio", callback_data="asset_portfolio")
     markup.add(btn_sync, btn_portfolio)
     
     # Row 3: Asset types
-    btn_stock = types.InlineKeyboardButton("📈 Saham", callback_data="asset_stock")
-    btn_crypto = types.InlineKeyboardButton("₿ Kripto", callback_data="asset_crypto")
+    btn_stock = types.InlineKeyboardButton("[STOCK] Saham", callback_data="asset_stock")
+    btn_crypto = types.InlineKeyboardButton("[CRYPTO] Kripto", callback_data="asset_crypto")
     markup.add(btn_stock, btn_crypto)
     
     # Row 4: Back button

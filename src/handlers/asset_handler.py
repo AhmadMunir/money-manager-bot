@@ -333,25 +333,31 @@ Apakah data sudah benar?"""
         user_id = call.from_user.id
         asset_id = int(call.data.split('_')[-1])
         
-        # Hapus tombol untuk mencegah double click
-        try:
-            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        except:
-            pass
+        # Show loading message dan disable tombol
+        bot.answer_callback_query(call.id, "[SYNC] Sedang sinkronisasi...", show_alert=False)
         
-        # Show loading message
-        bot.answer_callback_query(call.id, "🔄 Sedang sinkronisasi...", show_alert=False)
+        # Hapus keyboard untuk mencegah double click
+        try:
+            loading_markup = types.InlineKeyboardMarkup()
+            loading_markup.add(types.InlineKeyboardButton("[LOADING] Sinkronisasi...", callback_data="loading"))
+            bot.edit_message_reply_markup(
+                call.message.chat.id, 
+                call.message.message_id, 
+                reply_markup=loading_markup
+            )
+        except Exception as e:
+            logger.error(f"Error updating markup: {e}")
         
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.telegram_id == user_id).first()
             if not user:
-                bot.answer_callback_query(call.id, "❌ User tidak ditemukan.")
+                bot.answer_callback_query(call.id, "[ERROR] User tidak ditemukan.")
                 return
                 
             asset = db.query(Asset).filter(Asset.id == asset_id, Asset.user_id == user.id, Asset.is_active == True).first()
             if not asset:
-                bot.answer_callback_query(call.id, "❌ Aset tidak ditemukan.")
+                bot.answer_callback_query(call.id, "[ERROR] Aset tidak ditemukan.")
                 return
                 
             service = AssetService(db)
@@ -359,18 +365,27 @@ Apakah data sudah benar?"""
             if updated:
                 ret = asset.return_value or 0.0
                 ret_pct = asset.return_percent or 0.0
-                text = f"🔄 Harga {asset.name} disinkronisasi!\nHarga terakhir: {format_currency_idr(asset.last_price)}\nReturn: {format_currency_idr(ret)} ({ret_pct:.2f}%)"
+                text = f"[OK] Harga {asset.name} disinkronisasi!\nHarga terakhir: {format_currency_idr(asset.last_price)}\nReturn: {format_currency_idr(ret)} ({ret_pct:.2f}%)"
                 bot.answer_callback_query(call.id, text, show_alert=True)
             else:
-                bot.answer_callback_query(call.id, "❌ Gagal sinkron harga. Coba lagi nanti.", show_alert=True)
+                bot.answer_callback_query(call.id, "[ERROR] Gagal sinkron harga. Coba lagi nanti.", show_alert=True)
                 
-            # Refresh the asset list
+            # Refresh the asset list dengan delay kecil
+            import time
+            time.sleep(0.5)  # Beri waktu callback query selesai
             asset_command(call.message)
             
+        except Exception as e:
+            logger.error(f"Error in sync_asset_callback: {e}")
+            bot.answer_callback_query(call.id, f"[ERROR] Gagal sinkronisasi: {str(e)}", show_alert=True)
         finally:
             db.close()
 
-    # Asset menu callback handlers
+    # Tambahkan handler untuk loading state
+    @bot.callback_query_handler(func=lambda call: call.data == 'loading')
+    def loading_callback(call):
+        """Handle loading button clicks"""
+        bot.answer_callback_query(call.id, "[INFO] Masih memproses, mohon tunggu...", show_alert=False)
     @bot.callback_query_handler(func=lambda call: call.data == 'asset_list')
     def asset_list_callback(call):
         """Handle asset list callback"""
@@ -559,29 +574,97 @@ Untuk menambah aset kembali, silakan pilih tombol "Tambah Aset" atau gunakan com
         """Handle asset sync callback"""
         try:
             user_id = call.from_user.id
+            
+            # Show loading message dan disable tombol
+            bot.answer_callback_query(call.id, "[SYNC] Memulai sinkronisasi semua aset...", show_alert=False)
+            
+            # Update message dengan loading indicator
+            try:
+                loading_markup = types.InlineKeyboardMarkup()
+                loading_markup.add(types.InlineKeyboardButton("[LOADING] Sedang sinkronisasi...", callback_data="loading"))
+                loading_markup.add(types.InlineKeyboardButton("[CANCEL] Batal", callback_data="asset_menu"))
+                bot.edit_message_reply_markup(
+                    call.message.chat.id, 
+                    call.message.message_id, 
+                    reply_markup=loading_markup
+                )
+            except Exception as e:
+                logger.error(f"Error updating markup: {e}")
+            
             db = SessionLocal()
             try:
                 user = db.query(User).filter(User.telegram_id == user_id).first()
                 if not user:
-                    bot.answer_callback_query(call.id, "❌ User tidak ditemukan.")
+                    bot.answer_callback_query(call.id, "[ERROR] User tidak ditemukan.")
                     return
                 
                 service = AssetService(db)
                 assets = service.get_user_assets(user.id)
                 
                 if not assets:
-                    bot.answer_callback_query(call.id, "📭 Tidak ada aset untuk disinkronisasi.")
+                    bot.answer_callback_query(call.id, "[INFO] Tidak ada aset untuk disinkronisasi.")
                     return
                 
                 synced_count = 0
-                for asset in assets:
-                    if service.sync_asset_price(asset):
-                        synced_count += 1
+                failed_count = 0
+                success_assets = []
+                failed_assets = []
                 
-                text = f"🔄 *Sinkronisasi Harga Selesai*\n\n✅ {synced_count}/{len(assets)} aset berhasil disinkronisasi"
-                bot.answer_callback_query(call.id, text, show_alert=True)
+                # Progress update untuk setiap aset
+                for i, asset in enumerate(assets):
+                    try:
+                        # Update progress
+                        progress_text = f"[SYNC] Memproses {i+1}/{len(assets)}: {asset.symbol}"
+                        if i > 0:  # Avoid rate limiting callback queries
+                            try:
+                                bot.edit_message_text(
+                                    progress_text,
+                                    call.message.chat.id,
+                                    call.message.message_id,
+                                    reply_markup=loading_markup
+                                )
+                            except:
+                                pass
+                        
+                        # Sync price
+                        if service.sync_asset_price(asset):
+                            synced_count += 1
+                            success_assets.append(asset.symbol)
+                        else:
+                            failed_count += 1
+                            failed_assets.append(asset.symbol)
+                            
+                        # Small delay to avoid hitting API limits
+                        if i < len(assets) - 1:  # Don't delay on last item
+                            import time
+                            time.sleep(0.5)
+                            
+                    except Exception as e:
+                        logger.error(f"Error syncing asset {asset.symbol}: {e}")
+                        failed_count += 1
+                        failed_assets.append(asset.symbol)
                 
-                # Refresh the asset list
+                # Build result message
+                result_text = f"[OK] Sinkronisasi Harga Selesai\n\n"
+                result_text += f"Berhasil: {synced_count}/{len(assets)} aset\n"
+                if failed_count > 0:
+                    result_text += f"Gagal: {failed_count} aset\n"
+                
+                if success_assets:
+                    result_text += f"\nBerhasil: {', '.join(success_assets[:5])}"
+                    if len(success_assets) > 5:
+                        result_text += f" dan {len(success_assets)-5} lainnya"
+                        
+                if failed_assets:
+                    result_text += f"\nGagal: {', '.join(failed_assets[:3])}"
+                    if len(failed_assets) > 3:
+                        result_text += f" dan {len(failed_assets)-3} lainnya"
+                
+                bot.answer_callback_query(call.id, result_text, show_alert=True)
+                
+                # Refresh the asset list dengan delay
+                import time
+                time.sleep(0.5)
                 asset_list_callback(call)
                 
             finally:
@@ -589,7 +672,7 @@ Untuk menambah aset kembali, silakan pilih tombol "Tambah Aset" atau gunakan com
                 
         except Exception as e:
             logger.error(f"Error in asset sync callback: {e}")
-            bot.answer_callback_query(call.id, "❌ Gagal sinkronisasi")
+            bot.answer_callback_query(call.id, f"[ERROR] Gagal sinkronisasi: {str(e)}", show_alert=True)
 
     @bot.callback_query_handler(func=lambda call: call.data == 'asset_portfolio')
     def asset_portfolio_callback(call):
