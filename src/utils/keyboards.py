@@ -9,15 +9,19 @@ def create_main_menu():
     btn_transaction = types.InlineKeyboardButton("💸 Transaksi", callback_data="transaction_menu")
     markup.add(btn_wallet, btn_transaction)
     
-    # Row 2: Reports and Analysis
-    btn_report = types.InlineKeyboardButton("📊 Laporan", callback_data="report_menu")
-    btn_analysis = types.InlineKeyboardButton("📈 Analisis", callback_data="analysis_menu")
-    markup.add(btn_report, btn_analysis)
+    # Row 2: Asset and Investment management
+    btn_asset = types.InlineKeyboardButton("� Aset", callback_data="asset_menu")
+    btn_report = types.InlineKeyboardButton("� Laporan", callback_data="report_menu")
+    markup.add(btn_asset, btn_report)
     
-    # Row 3: Settings and Help
+    # Row 3: Analysis and Settings
+    btn_analysis = types.InlineKeyboardButton("📊 Analisis", callback_data="analysis_menu")
     btn_settings = types.InlineKeyboardButton("⚙️ Pengaturan", callback_data="settings_menu")
+    markup.add(btn_analysis, btn_settings)
+    
+    # Row 4: Help
     btn_help = types.InlineKeyboardButton("❓ Bantuan", callback_data="help")
-    markup.add(btn_settings, btn_help)
+    markup.add(btn_help)
     
     return markup
 
@@ -80,6 +84,31 @@ def create_analysis_menu():
     btn_trend = types.InlineKeyboardButton("📉 Trend", callback_data="analysis_trend")
     markup.add(btn_category, btn_trend)
     
+    btn_back = types.InlineKeyboardButton("🔙 Kembali", callback_data="main_menu")
+    markup.add(btn_back)
+    
+    return markup
+
+def create_asset_menu():
+    """Create asset management menu"""
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    
+    # Row 1: Asset list and add new asset
+    btn_list = types.InlineKeyboardButton("📋 Daftar Aset", callback_data="asset_list")
+    btn_add = types.InlineKeyboardButton("➕ Tambah Aset", callback_data="asset_add")
+    markup.add(btn_list, btn_add)
+    
+    # Row 2: Sync prices and portfolio overview
+    btn_sync = types.InlineKeyboardButton("🔄 Sinkron Harga", callback_data="asset_sync")
+    btn_portfolio = types.InlineKeyboardButton("💼 Portofolio", callback_data="asset_portfolio")
+    markup.add(btn_sync, btn_portfolio)
+    
+    # Row 3: Asset types
+    btn_stock = types.InlineKeyboardButton("📈 Saham", callback_data="asset_stock")
+    btn_crypto = types.InlineKeyboardButton("₿ Kripto", callback_data="asset_crypto")
+    markup.add(btn_stock, btn_crypto)
+    
+    # Row 4: Back button
     btn_back = types.InlineKeyboardButton("🔙 Kembali", callback_data="main_menu")
     markup.add(btn_back)
     
@@ -172,13 +201,33 @@ def create_wallet_selection_keyboard(wallets, action):
     
     for wallet in wallets:
         btn_text = f"{get_wallet_emoji(wallet.type)} {wallet.name}"
-        btn = types.InlineKeyboardButton(
-            btn_text, 
-            callback_data=f"{action}_wallet_{wallet.id}"
-        )
+        if action == 'transfer_from':
+            btn = types.InlineKeyboardButton(
+                btn_text, 
+                callback_data=f"transfer_from_wallet_{wallet.id}"
+            )
+        elif action == 'transfer_to':
+            btn = types.InlineKeyboardButton(
+                btn_text, 
+                callback_data=f"transfer_to_wallet_{wallet.id}"
+            )
+        elif action == 'asset':
+            btn = types.InlineKeyboardButton(
+                btn_text,
+                callback_data=f"asset_wallet_{wallet.id}"
+            )
+        else:
+            btn = types.InlineKeyboardButton(
+                btn_text, 
+                callback_data=f"{action}_wallet_{wallet.id}"
+            )
         markup.add(btn)
     
-    btn_back = types.InlineKeyboardButton("🔙 Kembali", callback_data="transaction_menu")
+    # Tombol kembali disesuaikan dengan action
+    if action == 'asset':
+        btn_back = types.InlineKeyboardButton("❌ Batalkan Input", callback_data="asset_add_cancel")
+    else:
+        btn_back = types.InlineKeyboardButton("🔙 Kembali", callback_data="transaction_menu")
     markup.add(btn_back)
     
     return markup

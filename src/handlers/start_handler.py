@@ -330,3 +330,33 @@ Pilih opsi yang Anda inginkan:"""
         except Exception as e:
             logger.error(f"Error in help callback: {e}")
             safe_answer_callback_query(bot, call.id, "❌ Terjadi kesalahan")
+
+    @bot.callback_query_handler(func=lambda call: call.data == 'asset_menu')
+    def asset_menu_callback(call):
+        """Handle asset menu callback"""
+        try:
+            from src.utils.keyboards import create_asset_menu
+            
+            menu_text = f"""📈 *Menu Aset & Investasi*
+
+Kelola portofolio investasi Anda:
+• 📋 Lihat daftar aset yang dimiliki
+• ➕ Tambah aset baru (saham/kripto)
+• 🔄 Sinkronisasi harga real-time
+• 💼 Overview portofolio lengkap
+
+Pilih opsi yang Anda inginkan:"""
+
+            markup = create_asset_menu()
+            bot.edit_message_text(
+                menu_text,
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=markup,
+                parse_mode='Markdown'
+            )
+            safe_answer_callback_query(bot, call.id)
+            
+        except Exception as e:
+            logger.error(f"Error in asset menu callback: {e}")
+            safe_answer_callback_query(bot, call.id, "❌ Terjadi kesalahan saat membuka menu aset")

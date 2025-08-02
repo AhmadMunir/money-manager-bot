@@ -214,3 +214,56 @@ def create_or_update_user(db, telegram_user):
     db.commit()
     db.refresh(user)
     return user
+
+class Asset(Base):
+    __tablename__ = 'assets'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    wallet_id = Column(Integer, ForeignKey('wallets.id', ondelete='CASCADE'), nullable=False, index=True)
+    asset_type = Column(String(20), nullable=False, index=True)  # 'saham' or 'kripto'
+    symbol = Column(String(20), nullable=False, index=True)  # Stock/crypto symbol
+    name = Column(String(100), nullable=False)  # Full name
+    quantity = Column(Float, nullable=False, default=0.0)
+    buy_price = Column(Float, nullable=False, default=0.0)  # Average buy price
+    last_price = Column(Float, default=0.0)  # Current market price
+    return_value = Column(Float, default=0.0)  # Calculated return
+    return_percent = Column(Float, default=0.0)  # Return percentage
+    last_sync = Column(DateTime)  # Last price sync
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="assets")
+    wallet = relationship("Wallet", backref="assets")
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_asset_user_active', 'user_id', 'is_active'),
+        Index('idx_asset_wallet_active', 'wallet_id', 'is_active'),
+        Index('idx_asset_type_symbol', 'asset_type', 'symbol'),
+        Index('idx_asset_user_type', 'user_id', 'asset_type', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<Asset(symbol={self.symbol}, quantity={self.quantity}, buy_price={self.buy_price})>"
+    
+    def calculate_return(self):
+        """Calculate return amount and percentage"""
+        if self.last_price and self.buy_price:
+            self.return_value = (self.last_price - self.buy_price) * self.quantity
+            self.return_percent = ((self.last_price - self.buy_price) / self.buy_price) * 100
+        else:
+            self.return_value = 0.0
+            self.return_percent = 0.0
+    
+    def get_current_value(self):
+        """Get current market value"""
+        if self.last_price:
+            return self.last_price * self.quantity
+        return self.buy_price * self.quantity
+    
+    def get_total_cost(self):
+        """Get total purchase cost"""
+        return self.buy_price * self.quantity

@@ -22,6 +22,163 @@ logger = logging.getLogger(__name__)
 transaction_states = {}
 
 def register_transaction_handlers(bot):
+    @bot.callback_query_handler(func=lambda call: call.data == 'transaction_transfer')
+    def transaction_transfer_callback(call):
+        """Handle transfer antar kantong (wallet)"""
+        try:
+            user_id = call.from_user.id
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    safe_answer_callback_query(bot, call.id, "❌ User tidak ditemukan")
+                    return
+                wallets = db.query(Wallet).filter(Wallet.user_id == user.id, Wallet.is_active == True).all()
+                if len(wallets) < 2:
+                    text = "📭 *Minimal 2 kantong diperlukan untuk transfer.*\n\nBuat kantong baru terlebih dahulu."
+                    markup = types.InlineKeyboardMarkup()
+                    btn_add = types.InlineKeyboardButton("➕ Tambah Kantong", callback_data="wallet_add")
+                    btn_back = types.InlineKeyboardButton("🔙 Kembali", callback_data="transaction_menu")
+                    markup.add(btn_add)
+                    markup.add(btn_back)
+                    bot.edit_message_text(
+                        text,
+                        call.message.chat.id,
+                        call.message.message_id,
+                        reply_markup=markup,
+                        parse_mode='Markdown'
+                    )
+                    return
+                # Store transfer state
+                transaction_states[user_id] = {
+                    'type': 'transfer',
+                    'step': 'from_wallet',
+                    'wallets': [w.id for w in wallets]
+                }
+                markup = create_wallet_selection_keyboard(wallets, 'transfer_from')
+                bot.edit_message_text(
+                    "🔄 *Transfer Antar Kantong*\n\nPilih kantong asal:",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    reply_markup=markup,
+                    parse_mode='Markdown'
+                )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in transfer transaction: {e}")
+            safe_answer_callback_query(bot, call.id, "❌ Terjadi kesalahan")
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('transfer_from_wallet_'))
+    def transfer_from_wallet_callback(call):
+        user_id = call.from_user.id
+        state = transaction_states.get(user_id)
+        if not state or state.get('type') != 'transfer' or state.get('step') != 'from_wallet':
+            return
+        from_wallet_id = int(call.data.split('_')[-1])
+        state['from_wallet_id'] = from_wallet_id
+        state['step'] = 'to_wallet'
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            wallets = db.query(Wallet).filter(Wallet.user_id == user.id, Wallet.is_active == True, Wallet.id != from_wallet_id).all()
+            markup = create_wallet_selection_keyboard(wallets, 'transfer_to')
+            bot.edit_message_text(
+                "🔄 *Transfer Antar Kantong*\n\nPilih kantong tujuan:",
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=markup,
+                parse_mode='Markdown'
+            )
+        finally:
+            db.close()
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('transfer_to_wallet_'))
+    def transfer_to_wallet_callback(call):
+        user_id = call.from_user.id
+        state = transaction_states.get(user_id)
+        if not state or state.get('type') != 'transfer' or state.get('step') != 'to_wallet':
+            return
+        to_wallet_id = int(call.data.split('_')[-1])
+        if to_wallet_id == state.get('from_wallet_id'):
+            safe_answer_callback_query(bot, call.id, "❌ Tidak bisa transfer ke kantong yang sama.")
+            return
+        state['to_wallet_id'] = to_wallet_id
+        state['step'] = 'amount'
+        bot.edit_message_text(
+            "🔄 *Transfer Antar Kantong*\n\nMasukkan jumlah yang akan ditransfer:",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode='Markdown'
+        )
+
+    @bot.message_handler(func=lambda message: transaction_states.get(message.from_user.id, {}).get('type') == 'transfer' and transaction_states.get(message.from_user.id, {}).get('step') == 'amount')
+    def handle_transfer_amount(message):
+        user_id = message.from_user.id
+        state = transaction_states.get(user_id)
+        amount = parse_amount(message.text)
+        if amount is None or amount <= 0:
+            bot.send_message(message.chat.id, "❌ Jumlah tidak valid. Masukkan angka positif.")
+            return
+        state['amount'] = amount
+        # Konfirmasi transfer
+        db = SessionLocal()
+        try:
+            from_wallet = db.query(Wallet).filter(Wallet.id == state['from_wallet_id']).first()
+            to_wallet = db.query(Wallet).filter(Wallet.id == state['to_wallet_id']).first()
+            if from_wallet.balance < amount:
+                bot.send_message(message.chat.id, f"❌ Saldo di kantong '{from_wallet.name}' tidak cukup.")
+                return
+            summary = f"🔄 *Konfirmasi Transfer*\n\n"
+            summary += f"Dari: {from_wallet.name}\nKe: {to_wallet.name}\n"
+            summary += f"Jumlah: {format_currency_idr(amount)}\n\n"
+            summary += "Apakah Anda yakin ingin melanjutkan?"
+            markup = create_confirmation_keyboard('confirm_transfer', 'transaction_menu')
+            bot.send_message(message.chat.id, summary, reply_markup=markup, parse_mode='Markdown')
+            state['step'] = 'confirm'
+        finally:
+            db.close()
+
+    @bot.callback_query_handler(func=lambda call: call.data == 'confirm_transfer')
+    def confirm_transfer_callback(call):
+        user_id = call.from_user.id
+        state = transaction_states.get(user_id)
+        if not state or state.get('type') != 'transfer' or state.get('step') != 'confirm':
+            return
+        db = SessionLocal()
+        try:
+            user_service = UserService(db)
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            from_wallet = db.query(Wallet).filter(Wallet.id == state['from_wallet_id']).first()
+            to_wallet = db.query(Wallet).filter(Wallet.id == state['to_wallet_id']).first()
+            amount = state['amount']
+            # Eksekusi transfer
+            user_service.create_transaction(
+                user_id=user.id,
+                transaction_type='transfer',
+                amount=amount,
+                description=f"Transfer dari {from_wallet.name} ke {to_wallet.name}",
+                from_wallet_id=from_wallet.id,
+                to_wallet_id=to_wallet.id
+            )
+            bot.edit_message_text(
+                f"✅ Transfer berhasil!\n\n{format_currency_idr(amount)} dari *{from_wallet.name}* ke *{to_wallet.name}*.",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='Markdown'
+            )
+            del transaction_states[user_id]
+        except Exception as e:
+            logger.error(f"Error in confirm_transfer: {e}")
+            bot.edit_message_text(
+                "❌ Transfer gagal. Silakan coba lagi.",
+                call.message.chat.id,
+                call.message.message_id
+            )
+            if user_id in transaction_states:
+                del transaction_states[user_id]
+        finally:
+            db.close()
     """Register transaction handlers"""
     
     @bot.callback_query_handler(func=lambda call: call.data == 'transaction_menu')
