@@ -1,0 +1,57 @@
+{
+  "backup_config": {
+    "enabled": true,
+    "max_backups": 10,
+    "auto_backup_triggers": [
+      "before_migration",
+      "before_deployment",
+      "daily_scheduled",
+      "before_bulk_operations",
+      "before_schema_changes"
+    ],
+    "backup_schedule": {
+      "daily_backup": "02:00",
+      "weekly_full_backup": "Sunday 03:00"
+    },
+    "critical_operations": [
+      "delete_all_assets",
+      "reset_database", 
+      "bulk_import",
+      "schema_migration",
+      "user_data_export"
+    ],
+    "retention_policy": {
+      "daily_backups": 7,
+      "weekly_backups": 4,
+      "monthly_backups": 12,
+      "migration_backups": 5
+    }
+  },
+  "backup_paths": {
+    "databases": [
+      "finance_bot.db",
+      "monman.db"
+    ],
+    "critical_files": [
+      "main.py",
+      "src/",
+      "requirements.txt",
+      ".env.example",
+      "README.md",
+      "migrations/"
+    ],
+    "backup_directory": "backups/",
+    "archive_directory": "backups/archives/"
+  },
+  "notifications": {
+    "backup_success": true,
+    "backup_failure": true,
+    "backup_warnings": true,
+    "low_disk_space": true
+  },
+  "recovery_options": {
+    "auto_recovery_enabled": false,
+    "recovery_verification": true,
+    "rollback_points": 3
+  }
+}

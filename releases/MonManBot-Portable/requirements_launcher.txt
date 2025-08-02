@@ -1,0 +1,17 @@
+# MonMan Bot Launcher - Requirements
+# GUI and CLI launcher dependencies
+
+# Core dependencies (already in main requirements.txt)
+# pyTelegramBotAPI>=4.12.0
+# SQLAlchemy>=2.0.0
+# python-dotenv>=1.0.0
+
+# Additional dependencies for launchers
+psutil>=5.9.0        # Process monitoring (optional, for enhanced status info)
+colorama>=0.4.6      # Cross-platform colored terminal output (Windows)
+
+# Note: Most dependencies are built-in Python modules:
+# - tkinter (GUI) - usually included with Python
+# - subprocess, threading, signal - built-in
+# - argparse, json, logging - built-in
+# - os, sys, time, pathlib - built-in

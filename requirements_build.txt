@@ -1,0 +1,17 @@
+# Build requirements for creating executables
+# Used by PyInstaller to create .exe files
+
+# Core build tool
+pyinstaller>=5.13.0
+
+# Additional libraries that might be needed for packaging
+# (Most dependencies already in main requirements.txt)
+
+# Optional: For better executable compression
+upx-ucl>=4.0.0  # Note: UPX binary needs to be installed separately
+
+# For icon handling in executables
+Pillow>=10.0.0
+
+# For better Windows integration
+pywin32>=306  # Windows only, ignored on other platforms
